@@ -63,6 +63,8 @@ body {
   letter-spacing: -.3px;
 }
 .logo-icon { font-size: 22px; color: var(--primary); }
+.logo-body { display: flex; flex-direction: column; gap: 1px; }
+.logo-version { font-size: 10px; font-weight: 500; color: var(--text-muted); letter-spacing: .4px; }
 
 .nav { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
 .nav-item {

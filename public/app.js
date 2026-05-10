@@ -1,3 +1,4 @@
+const APP_VERSION = '1.1';
 const API = '/api/leads';
 const API_KEY = 'minicrm-secret-2026';
 
@@ -556,4 +557,5 @@ function formatDatetime(iso) {
 }
 
 // ── Init ──
+document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
 fetchLeads();
