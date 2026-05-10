@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniCRM Leads</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">
+        <span class="logo-icon">&#9685;</span>
+        <span class="logo-text">MiniCRM</span>
+      </div>
+      <nav class="nav">
+        <a href="#" class="nav-item active" data-tab="leads">
+          <span class="nav-icon">&#9783;</span>
+          <span class="nav-label">Leads</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="stats">
+          <span class="nav-icon">&#9641;</span>
+          <span class="nav-label">Estadísticas</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="marketing">
+          <span class="nav-icon">&#128187;</span>
+          <span class="nav-label">Marketing</span>
+        </a>
+      </nav>
+    </aside>
+
+    <main class="main">
+
+      <!-- ═══ VISTA LEADS ═══ -->
+      <div id="leadsView" class="page-view">
+        <header class="page-header">
+          <div>
+            <h1 class="page-title">Leads</h1>
+            <p class="page-subtitle">Gestiona y filtra tus contactos</p>
+          </div>
+          <button class="btn btn-primary" id="openModal">+ Nuevo lead</button>
+        </header>
+
+        <div class="filters">
+          <button class="filter-btn active" data-status="todos">Todos</button>
+          <button class="filter-btn" data-status="nuevo">Nuevo</button>
+          <button class="filter-btn" data-status="contactado">Contactado</button>
+          <button class="filter-btn" data-status="calificado">Calificado</button>
+          <button class="filter-btn" data-status="perdido">Perdido</button>
+          <button class="filter-btn" data-status="convertido">Convertido</button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Contacto</th>
+                <th>Fuente</th>
+                <th>Estado</th>
+                <th>Creado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="leadsBody">
+              <tr><td colspan="6" class="empty-state">No hay leads aún. ¡Crea el primero!</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ VISTA ESTADÍSTICAS ═══ -->
+      <div id="statsView" class="page-view hidden">
+        <header class="page-header">
+          <div>
+            <h1 class="page-title">Estadísticas</h1>
+            <p class="page-subtitle">Análisis del pipeline de ventas</p>
+          </div>
+        </header>
+
+        <div class="stats-toolbar">
+          <span class="stats-toolbar-label">Fuente:</span>
+          <div class="pill-group" id="sourcePills">
+            <button class="pill active" data-source="">Todas</button>
+            <button class="pill" data-source="Referido">Referido</button>
+            <button class="pill" data-source="Externo">Externo</button>
+            <button class="pill" data-source="Marketing">Marketing</button>
+            <button class="pill" data-source="Recurrente Marketing">Rec. Marketing</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="charts-row">
+          <div class="chart-card">
+            <h3 class="chart-title">Distribución por estado</h3>
+            <div class="chart-wrap donut-wrap"><canvas id="chartDonut"></canvas></div>
+            <div class="chart-legend" id="donutLegend"></div>
+          </div>
+          <div class="chart-card">
+            <h3 class="chart-title">Comparativa por fuente</h3>
+            <div class="chart-wrap bar-wrap"><canvas id="chartBar"></canvas></div>
+          </div>
+        </div>
+
+        <div class="breakdown-card">
+          <h3 class="breakdown-title">Desglose fuente × estado</h3>
+          <div class="breakdown-table-wrap">
+            <table class="breakdown-table" id="breakdownTable"></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ VISTA MARKETING ═══ -->
+      <div id="marketingView" class="page-view hidden">
+        <header class="page-header">
+          <div>
+            <h1 class="page-title">Marketing</h1>
+            <p class="page-subtitle">Últimos contenidos de Marketing Jurídico</p>
+          </div>
+        </header>
+
+        <div class="marketing-grid">
+          <section class="marketing-panel">
+            <div class="marketing-card">
+              <h2>¿Quieres aumentar la facturación de tu despacho?</h2>
+              <p>Descubre tácticas prácticas y contenido exclusivo para despachos que quieren crecer.</p>
+              <a class="btn btn-primary" href="https://marketingjuridico.org/" target="_blank" rel="noreferrer noopener">
+                Ir a Marketing Jurídico
+              </a>
+            </div>
+          </section>
+
+          <section class="marketing-panel">
+            <div class="video-frame">
+              <iframe
+                src="https://www.youtube.com/embed?listType=user_uploads&list=MarketingJuridicoorg"
+                title="Feed de Marketing Jurídico"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+              </iframe>
+            </div>
+          </section>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ═══ MODAL crear/editar ═══ -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Nuevo lead</h2>
+        <button class="modal-close" id="closeModal" aria-label="Cerrar">&times;</button>
+      </div>
+      <form id="leadForm" novalidate>
+        <input type="hidden" id="leadId" />
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fieldName">Nombre <span class="required">*</span></label>
+            <input type="text" id="fieldName" placeholder="Ana García" autocomplete="off" />
+            <span class="field-error" id="errName"></span>
+          </div>
+          <div class="form-group">
+            <label for="fieldPhone">Teléfono</label>
+            <input type="tel" id="fieldPhone" placeholder="+34 600 000 000" autocomplete="off" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="fieldEmail">Email <span class="required">*</span></label>
+          <input type="email" id="fieldEmail" placeholder="ana@empresa.com" autocomplete="off" />
+          <span class="field-error" id="errEmail"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fieldSource">Fuente</label>
+            <select id="fieldSource">
+              <option value="">— Sin fuente —</option>
+              <option value="Referido">Referido</option>
+              <option value="Externo">Externo</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Recurrente Marketing">Recurrente Marketing</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="fieldStatus">Estado</label>
+            <select id="fieldStatus">
+              <option value="nuevo">Nuevo</option>
+              <option value="contactado">Contactado</option>
+              <option value="calificado">Calificado</option>
+              <option value="perdido">Perdido</option>
+              <option value="convertido">Convertido</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="fieldMessage">Mensaje</label>
+          <textarea id="fieldMessage" rows="3" placeholder="Mensaje inicial del lead o contexto…"></textarea>
+        </div>
+        <div class="form-error hidden" id="formError"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancelModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══ DRAWER ver más ═══ -->
+  <div class="drawer-overlay hidden" id="drawerOverlay">
+    <div class="drawer" id="drawer" role="complementary">
+      <div class="drawer-header">
+        <div class="drawer-lead-title">
+          <h2 id="drawerName"></h2>
+          <span id="drawerBadge"></span>
+        </div>
+        <div class="drawer-header-actions">
+          <button class="btn btn-ghost btn-sm" id="drawerEditBtn">Editar</button>
+          <button class="btn btn-danger-outline btn-sm" id="drawerDeleteBtn">Eliminar</button>
+          <button class="drawer-close" id="closeDrawer" aria-label="Cerrar">&times;</button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <h3 class="drawer-section-title">Información</h3>
+          <div class="info-grid" id="drawerInfoGrid"></div>
+        </section>
+        <section class="drawer-section" id="drawerMessageSection">
+          <h3 class="drawer-section-title">Mensaje</h3>
+          <p class="drawer-message" id="drawerMessageText"></p>
+        </section>
+        <section class="drawer-section">
+          <h3 class="drawer-section-title">Actividad</h3>
+          <div class="activity-compose">
+            <textarea id="activityInput" rows="2" placeholder="Añade una nota de actividad…"></textarea>
+            <button class="btn btn-primary btn-sm" id="addActivityBtn">Añadir nota</button>
+          </div>
+          <div class="activity-log" id="activityLog"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

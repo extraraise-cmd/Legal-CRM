@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Base de datos local (generada en tiempo de ejecución)
+db/database.sqlite
+db/database.sqlite-shm
+db/database.sqlite-wal
+
+# Variables de entorno — NUNCA subir al repo
+.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/

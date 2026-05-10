@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniCRM Client</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>MiniCRM Client</h1>
+    <p class="subtitle">Conectado a <code>http://localhost:3000/api/leads</code></p>
+
+    <div class="actions">
+      <button id="btn-load">Cargar leads</button>
+      <button id="btn-create" class="secondary">Crear lead de prueba</button>
+    </div>
+
+    <p id="status-msg" class="status hidden"></p>
+
+    <table id="leads-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Fuente</th>
+          <th>Estado</th>
+          <th>Creado</th>
+        </tr>
+      </thead>
+      <tbody id="leads-body">
+        <tr id="empty-row">
+          <td colspan="6">Pulsa "Cargar leads" para empezar.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
