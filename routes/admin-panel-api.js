@@ -49,6 +49,7 @@ router.post('/tenants/:id/reject', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const tenant = await prisma.tenant.findUnique({ where: { id } });
   if (!tenant) return res.status(404).json({ error: 'Tenant no encontrado.' });
+  if (tenant.role === 'admin') return res.status(403).json({ error: 'No se puede eliminar una cuenta de administrador.' });
 
   await sendRejectionNotification({ name: tenant.name, email: tenant.email });
   await prisma.tenant.delete({ where: { id } });
@@ -67,6 +68,8 @@ router.patch('/tenants/:id', async (req, res) => {
 
   const existing = await prisma.tenant.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Tenant no encontrado.' });
+  if (existing.role === 'admin' && role === 'user')
+    return res.status(403).json({ error: 'No se puede rebajar el rol de un administrador.' });
 
   const data = {};
   if (role !== undefined) data.role = role;
@@ -81,6 +84,7 @@ router.delete('/tenants/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const existing = await prisma.tenant.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Tenant no encontrado.' });
+  if (existing.role === 'admin') return res.status(403).json({ error: 'No se puede eliminar una cuenta de administrador.' });
   await prisma.tenant.delete({ where: { id } });
   res.status(204).send();
 });

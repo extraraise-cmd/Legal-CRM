@@ -181,25 +181,28 @@ function tenantCard(t) {
     ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">Pro</span>`
     : `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Free</span>`;
 
+  const isAdmin = t.role === 'admin';
+
   const actions = !t.approved ? `
     <button onclick="approve(${t.id})"
       class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition">
       Aprobar
     </button>
-    <button onclick="reject(${t.id}, '${escHtml(t.name)}')"
+    ${isAdmin ? '' : `<button onclick="reject(${t.id}, '${escHtml(t.name)}')"
       class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition">
       Rechazar
-    </button>
+    </button>`}
   ` : `
     <select onchange="changePlan(${t.id}, this.value)"
       class="text-xs border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand">
       <option value="free"  ${t.plan==='free' ?'selected':''}>Free</option>
       <option value="pro"   ${t.plan==='pro'  ?'selected':''}>Pro</option>
     </select>
+    ${isAdmin ? `<span class="px-3 py-1.5 text-xs text-gray-400 italic">Administrador</span>` : `
     <button onclick="deleteTenant(${t.id}, '${escHtml(t.name)}')"
       class="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 transition">
       Eliminar
-    </button>
+    </button>`}
   `;
 
   return `
