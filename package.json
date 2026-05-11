@@ -4,16 +4,29 @@
   "description": "MiniCRM Leads - capture and manage leads with SQLite persistence",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "npx nodemon server.js"
+    "start": "npx prisma migrate deploy && node server.js",
+    "dev": "npx nodemon server.js",
+    "test": "cross-env NODE_ENV=test DATABASE_URL=file:./prisma/test.db jest --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "globalSetup": "./jest.globalSetup.js"
   },
   "dependencies": {
+    "@clerk/express": "^2.1.15",
+    "@prisma/client": "^5.22.0",
     "better-sqlite3": "^12.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "nodemailer": "^8.0.7",
+    "prisma": "^5.22.0",
+    "svix": "^1.93.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "cross-env": "^10.1.0",
+    "jest": "^30.4.2",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
   }
 }

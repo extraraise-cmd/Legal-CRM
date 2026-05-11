@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id          Int      @id @default(autoincrement())
+  clerkUserId String   @unique @map("clerk_user_id")
+  name        String
+  email       String   @unique
+  role        String   @default("user")      // "user" | "admin"
+  plan        String   @default("free")      // "free" | "pro"
+  approved    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  leads       Lead[]
+
+  @@map("tenants")
+}
+
+model Lead {
+  id         Int        @id @default(autoincrement())
+  name       String
+  email      String
+  phone      String     @default("")
+  source     String     @default("")
+  status     String     @default("nuevo")
+  message    String     @default("")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  tenantId   Int        @map("tenant_id")
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  activities Activity[]
+
+  @@map("leads")
+}
+
+model Activity {
+  id        Int      @id @default(autoincrement())
+  leadId    Int      @map("lead_id")
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("activities")
+}

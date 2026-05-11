@@ -1,11 +1,13 @@
 const APP_VERSION = '1.1';
 const API = '/api/leads';
-const API_KEY = 'minicrm-secret-2026';
 
-function apiFetch(url, options = {}) {
+let _clerk;
+
+async function apiFetch(url, options = {}) {
+  const token = await _clerk.session.getToken();
   return fetch(url, {
     ...options,
-    headers: { ...options.headers, 'x-api-key': API_KEY },
+    headers: { ...options.headers, 'Authorization': `Bearer ${token}` },
   });
 }
 
@@ -556,6 +558,60 @@ function formatDatetime(iso) {
   return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Init ──
-document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
-fetchLeads();
+// ════════════════════════════════════════
+//  AUTH + BOOTSTRAP
+// ════════════════════════════════════════
+function showScreen(name) {
+  document.getElementById('auth-screen').classList.toggle('hidden', name !== 'auth');
+  document.getElementById('pending-screen').classList.toggle('hidden', name !== 'pending');
+  document.getElementById('app-layout').classList.toggle('hidden', name !== 'app');
+}
+
+async function bootstrap() {
+  const { clerkPublishableKey } = await fetch('/config').then(r => r.json());
+
+  _clerk = new window.Clerk(clerkPublishableKey);
+  await _clerk.load();
+
+  _clerk.addListener(({ user }) => {
+    if (!user) { showScreen('auth'); }
+  });
+
+  if (!_clerk.user) {
+    showScreen('auth');
+    _clerk.mountSignIn(document.getElementById('sign-in-container'), {
+      afterSignInUrl:  '/',
+      afterSignUpUrl:  '/',
+    });
+    return;
+  }
+
+  // Comprobar si el tenant está aprobado
+  const token = await _clerk.session.getToken();
+  const check = await fetch('/api/leads', {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+
+  if (check.status === 403) {
+    const body = await check.json().catch(() => ({}));
+    if (body.code === 'PENDING_APPROVAL') {
+      showScreen('pending');
+      document.getElementById('pending-signout').onclick = () =>
+        _clerk.signOut().then(() => location.reload());
+      return;
+    }
+  }
+
+  // Usuario aprobado: mostrar app
+  const u = _clerk.user;
+  document.getElementById('user-name').textContent  = u.fullName || u.primaryEmailAddress?.emailAddress || '';
+  document.getElementById('user-email').textContent = u.primaryEmailAddress?.emailAddress || '';
+  document.getElementById('signout-btn').onclick    = () =>
+    _clerk.signOut().then(() => location.reload());
+
+  showScreen('app');
+  document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
+  fetchLeads();
+}
+
+bootstrap();

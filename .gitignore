@@ -1,10 +1,16 @@
 # Dependencias
 node_modules/
 
-# Base de datos local (generada en tiempo de ejecución)
+# Bases de datos locales
 db/database.sqlite
 db/database.sqlite-shm
 db/database.sqlite-wal
+prisma/*.db
+prisma/*.db-shm
+prisma/*.db-wal
+
+# Cliente Prisma de test (SQLite, generado automáticamente)
+node_modules/.prisma-test/
 
 # Variables de entorno — NUNCA subir al repo
 .env

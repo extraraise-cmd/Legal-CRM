@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiniCRM · Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { colors: { brand: '#4f46e5' } } } }</script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+
+<!-- ── Login ── -->
+<div id="login-screen" class="flex items-center justify-center min-h-screen">
+  <div class="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
+    <h1 class="text-2xl font-bold text-gray-900 mb-1">MiniCRM</h1>
+    <p class="text-gray-500 mb-6 text-sm">Panel de administración</p>
+    <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+    <input id="key-input" type="password" placeholder="minicrm-secret-…"
+      class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand mb-4" />
+    <button onclick="login()"
+      class="w-full bg-brand text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 transition">
+      Entrar
+    </button>
+    <p id="login-error" class="text-red-500 text-xs mt-2 hidden">API Key incorrecta</p>
+  </div>
+</div>
+
+<!-- ── Dashboard ── -->
+<div id="dashboard" class="hidden">
+
+  <!-- Header -->
+  <header class="bg-white border-b px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-xl font-bold text-gray-900">MiniCRM</span>
+      <span class="text-gray-400">·</span>
+      <span class="text-sm text-gray-500">Admin</span>
+    </div>
+    <button onclick="logout()" class="text-sm text-gray-400 hover:text-gray-700 transition">Salir</button>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-8">
+
+    <!-- Stats -->
+    <div id="stats" class="grid grid-cols-3 gap-4 mb-8"></div>
+
+    <!-- Filtros -->
+    <div class="flex gap-2 mb-6">
+      <button onclick="setFilter('pending')"  data-filter="pending"  class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium transition">Pendientes</button>
+      <button onclick="setFilter('approved')" data-filter="approved" class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium transition">Aprobados</button>
+      <button onclick="setFilter('all')"      data-filter="all"      class="filter-btn px-4 py-1.5 rounded-full text-sm font-medium transition">Todos</button>
+    </div>
+
+    <!-- Lista -->
+    <div id="tenant-list" class="space-y-3"></div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+      <svg class="mx-auto mb-3 w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2h5M12 12a4 4 0 100-8 4 4 0 000 8z"/>
+      </svg>
+      <p class="text-sm">No hay registros en esta categoría</p>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast" class="fixed bottom-6 right-6 hidden">
+  <div id="toast-inner" class="px-4 py-3 rounded-xl text-sm text-white shadow-lg flex items-center gap-2"></div>
+</div>
+
+<script>
+const BASE = '/admin-api';
+let API_KEY = '';
+let currentFilter = 'pending';
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+
+async function login() {
+  const key = document.getElementById('key-input').value.trim();
+  if (!key) return;
+  const res = await fetch(`${BASE}/tenants?filter=all`, { headers: { 'x-api-key': key } });
+  if (res.status === 401) {
+    document.getElementById('login-error').classList.remove('hidden');
+    return;
+  }
+  API_KEY = key;
+  sessionStorage.setItem('admin_key', key);
+  showDashboard();
+}
+
+function logout() {
+  sessionStorage.removeItem('admin_key');
+  API_KEY = '';
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('key-input').value = '';
+}
+
+document.getElementById('key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+// ── Load ────────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = sessionStorage.getItem('admin_key');
+  if (saved) { API_KEY = saved; showDashboard(); }
+});
+
+function showDashboard() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  setFilter('pending');
+  loadStats();
+}
+
+// ── Stats ───────────────────────────────────────────────────────────────────
+
+async function loadStats() {
+  const [all, pending, approved] = await Promise.all([
+    apiFetch('/tenants?filter=all'),
+    apiFetch('/tenants?filter=pending'),
+    apiFetch('/tenants?filter=approved'),
+  ]);
+  document.getElementById('stats').innerHTML = `
+    ${statCard(pending.length,  'Pendientes',  'yellow')}
+    ${statCard(approved.length, 'Aprobados',   'green')}
+    ${statCard(all.length,      'Total',       'indigo')}
+  `;
+}
+
+function statCard(n, label, color) {
+  const colors = {
+    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    green:  'bg-green-50  text-green-700  border-green-200',
+    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  };
+  return `
+    <div class="rounded-xl border px-5 py-4 ${colors[color]}">
+      <p class="text-3xl font-bold">${n}</p>
+      <p class="text-sm mt-1">${label}</p>
+    </div>
+  `;
+}
+
+// ── Filtros ─────────────────────────────────────────────────────────────────
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    const active = btn.dataset.filter === f;
+    btn.className = 'filter-btn px-4 py-1.5 rounded-full text-sm font-medium transition ' +
+      (active ? 'bg-brand text-white' : 'bg-white text-gray-600 border hover:bg-gray-50');
+  });
+  loadTenants();
+}
+
+// ── Tenants ─────────────────────────────────────────────────────────────────
+
+async function loadTenants() {
+  const tenants = await apiFetch(`/tenants?filter=${currentFilter}`);
+  const list = document.getElementById('tenant-list');
+  const empty = document.getElementById('empty-state');
+
+  if (!tenants.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = tenants.map(tenantCard).join('');
+}
+
+function tenantCard(t) {
+  const date = new Date(t.createdAt).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' });
+  const badge = t.approved
+    ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Aprobado</span>`
+    : `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Pendiente</span>`;
+  const planBadge = t.plan === 'pro'
+    ? `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">Pro</span>`
+    : `<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Free</span>`;
+
+  const actions = !t.approved ? `
+    <button onclick="approve(${t.id})"
+      class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition">
+      Aprobar
+    </button>
+    <button onclick="reject(${t.id}, '${escHtml(t.name)}')"
+      class="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition">
+      Rechazar
+    </button>
+  ` : `
+    <select onchange="changePlan(${t.id}, this.value)"
+      class="text-xs border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand">
+      <option value="free"  ${t.plan==='free' ?'selected':''}>Free</option>
+      <option value="pro"   ${t.plan==='pro'  ?'selected':''}>Pro</option>
+    </select>
+    <button onclick="deleteTenant(${t.id}, '${escHtml(t.name)}')"
+      class="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 transition">
+      Eliminar
+    </button>
+  `;
+
+  return `
+    <div id="tenant-${t.id}" class="bg-white rounded-xl border px-5 py-4 flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-medium text-gray-900">${escHtml(t.name)}</span>
+          ${badge} ${planBadge}
+        </div>
+        <p class="text-sm text-gray-500 mt-0.5">${escHtml(t.email)}</p>
+        <p class="text-xs text-gray-400 mt-1">${date} · ${t._count.leads} leads</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">${actions}</div>
+    </div>
+  `;
+}
+
+// ── Actions ─────────────────────────────────────────────────────────────────
+
+async function approve(id) {
+  const res = await apiFetch(`/tenants/${id}/approve`, 'POST');
+  if (res.ok === true) {
+    toast('Cuenta aprobada. Email enviado al usuario.', 'green');
+    loadTenants(); loadStats();
+  }
+}
+
+async function reject(id, name) {
+  if (!confirm(`¿Rechazar y eliminar la cuenta de "${name}"?`)) return;
+  const res = await fetch(`${BASE}/tenants/${id}/reject`, {
+    method: 'POST', headers: { 'x-api-key': API_KEY },
+  });
+  if (res.status === 204) {
+    toast('Cuenta rechazada y eliminada.', 'red');
+    loadTenants(); loadStats();
+  }
+}
+
+async function changePlan(id, plan) {
+  await apiFetch(`/tenants/${id}`, 'PATCH', { plan });
+  toast(`Plan actualizado a ${plan}.`, 'green');
+  loadStats();
+}
+
+async function deleteTenant(id, name) {
+  if (!confirm(`¿Eliminar la cuenta de "${name}" y todos sus leads?`)) return;
+  const res = await fetch(`${BASE}/tenants/${id}`, {
+    method: 'DELETE', headers: { 'x-api-key': API_KEY },
+  });
+  if (res.status === 204) {
+    toast('Cuenta eliminada.', 'red');
+    loadTenants(); loadStats();
+  }
+}
+
+// ── Utils ────────────────────────────────────────────────────────────────────
+
+async function apiFetch(path, method = 'GET', body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { logout(); return {}; }
+  if (res.status === 204) return {};
+  return res.json();
+}
+
+let toastTimer;
+function toast(msg, color = 'green') {
+  const el = document.getElementById('toast');
+  const inner = document.getElementById('toast-inner');
+  inner.className = `px-4 py-3 rounded-xl text-sm text-white shadow-lg flex items-center gap-2 ${
+    color === 'green' ? 'bg-green-600' : 'bg-red-500'
+  }`;
+  inner.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 3500);
+}
+
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

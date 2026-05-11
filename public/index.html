@@ -5,9 +5,71 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MiniCRM Leads</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Auth screens */
+    .auth-screen {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      background: #f8fafc;
+    }
+    .auth-screen.hidden { display: none; }
+    .auth-card {
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.10);
+      padding: 40px 36px; width: 100%; max-width: 400px; text-align: center;
+    }
+    .auth-logo { font-size: 1.6rem; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+    .auth-sub  { font-size: .9rem; color: #64748b; margin-bottom: 28px; }
+    #sign-in-container { display: flex; justify-content: center; }
+    /* Pending screen */
+    .pending-icon { font-size: 3rem; margin-bottom: 16px; }
+    .pending-title { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+    .pending-text  { font-size: .9rem; color: #64748b; line-height: 1.6; margin-bottom: 24px; }
+    .btn-signout {
+      background: none; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 8px 20px; font-size: .85rem; color: #64748b; cursor: pointer;
+    }
+    .btn-signout:hover { background: #f1f5f9; }
+    /* User info en sidebar */
+    .sidebar-user {
+      padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.1);
+      margin-top: auto;
+    }
+    .sidebar-user-name  { font-size: .8rem; font-weight: 600; color: rgba(255,255,255,.9); }
+    .sidebar-user-email { font-size: .72rem; color: rgba(255,255,255,.55); margin-top: 1px; }
+    .sidebar-signout {
+      margin-top: 8px; font-size: .75rem; color: rgba(255,255,255,.45);
+      background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline;
+    }
+    .sidebar-signout:hover { color: rgba(255,255,255,.8); }
+  </style>
 </head>
 <body>
-  <div class="layout">
+
+  <!-- ═══ PANTALLA DE LOGIN ═══ -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">MiniCRM Leads</div>
+      <p class="auth-sub">Inicia sesión para acceder a tu panel</p>
+      <div id="sign-in-container"></div>
+    </div>
+  </div>
+
+  <!-- ═══ PANTALLA PENDIENTE DE APROBACIÓN ═══ -->
+  <div id="pending-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="pending-icon">⏳</div>
+      <div class="pending-title">Solicitud enviada</div>
+      <p class="pending-text">
+        Tu cuenta está pendiente de aprobación.<br>
+        Recibirás un email en cuanto tengamos tu acceso listo.
+      </p>
+      <button class="btn-signout" id="pending-signout">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <!-- ═══ APP PRINCIPAL ═══ -->
+  <div class="layout hidden" id="app-layout">
     <aside class="sidebar">
       <div class="logo">
         <span class="logo-icon">&#9685;</span>
@@ -30,6 +92,11 @@
           <span class="nav-label">Marketing</span>
         </a>
       </nav>
+      <div class="sidebar-user">
+        <div class="sidebar-user-name"  id="user-name"></div>
+        <div class="sidebar-user-email" id="user-email"></div>
+        <button class="sidebar-signout" id="signout-btn">Cerrar sesión</button>
+      </div>
     </aside>
 
     <main class="main">
@@ -246,6 +313,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
