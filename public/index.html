@@ -30,18 +30,6 @@
       padding: 8px 20px; font-size: .85rem; color: #64748b; cursor: pointer;
     }
     .btn-signout:hover { background: #f1f5f9; }
-    /* User info en sidebar */
-    .sidebar-user {
-      padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.1);
-      margin-top: auto;
-    }
-    .sidebar-user-name  { font-size: .8rem; font-weight: 600; color: rgba(255,255,255,.9); }
-    .sidebar-user-email { font-size: .72rem; color: rgba(255,255,255,.55); margin-top: 1px; }
-    .sidebar-signout {
-      margin-top: 8px; font-size: .75rem; color: rgba(255,255,255,.45);
-      background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline;
-    }
-    .sidebar-signout:hover { color: rgba(255,255,255,.8); }
   </style>
 </head>
 <body>
@@ -70,34 +58,25 @@
 
   <!-- ═══ APP PRINCIPAL ═══ -->
   <div class="layout hidden" id="app-layout">
-    <aside class="sidebar">
-      <div class="logo">
-        <span class="logo-icon">&#9685;</span>
-        <div class="logo-body">
-          <span class="logo-text">MiniCRM Leads</span>
-          <span class="logo-version" id="appVersion"></span>
-        </div>
+    <header class="topnav">
+      <div class="topnav-brand">
+        <span class="topnav-logo-icon">&#9685;</span>
+        <span class="topnav-logo-text">MiniCRM Leads</span>
+        <span class="topnav-version" id="appVersion"></span>
       </div>
-      <nav class="nav">
-        <a href="#" class="nav-item active" data-tab="leads">
-          <span class="nav-icon">&#9783;</span>
-          <span class="nav-label">Leads</span>
-        </a>
-        <a href="#" class="nav-item" data-tab="stats">
-          <span class="nav-icon">&#9641;</span>
-          <span class="nav-label">Estadísticas</span>
-        </a>
-        <a href="#" class="nav-item" data-tab="marketing">
-          <span class="nav-icon">&#128187;</span>
-          <span class="nav-label">Marketing</span>
-        </a>
+      <nav class="topnav-nav">
+        <a href="#" class="nav-item active" data-tab="leads">Leads</a>
+        <a href="#" class="nav-item" data-tab="stats">Estadísticas</a>
+        <a href="#" class="nav-item" data-tab="marketing">Marketing</a>
       </nav>
-      <div class="sidebar-user">
-        <div class="sidebar-user-name"  id="user-name"></div>
-        <div class="sidebar-user-email" id="user-email"></div>
-        <button class="sidebar-signout" id="signout-btn">Cerrar sesión</button>
+      <div class="topnav-user">
+        <div class="topnav-user-info">
+          <div class="topnav-user-name"  id="user-name"></div>
+          <div class="topnav-user-email" id="user-email"></div>
+        </div>
+        <button class="topnav-signout" id="signout-btn">Cerrar sesión</button>
       </div>
-    </aside>
+    </header>
 
     <main class="main">
 
@@ -120,6 +99,11 @@
           <button class="filter-btn" data-status="convertido">Convertido</button>
         </div>
 
+        <div class="search-bar-wrap">
+          <input type="search" id="searchInput" class="search-input"
+                 placeholder="Buscar por nombre o email…" autocomplete="off" />
+        </div>
+
         <div class="table-wrapper">
           <table class="table">
             <thead>
@@ -127,6 +111,7 @@
                 <th>Nombre</th>
                 <th>Contacto</th>
                 <th>Fuente</th>
+                <th>Calidad</th>
                 <th>Estado</th>
                 <th>Creado</th>
                 <th></th>
@@ -144,18 +129,28 @@
         <header class="page-header">
           <div>
             <h1 class="page-title">Estadísticas</h1>
-            <p class="page-subtitle">Análisis del pipeline de ventas</p>
+            <p class="page-subtitle" id="statsSubtitle">Análisis del pipeline de ventas</p>
           </div>
+          <button class="btn btn-ghost btn-sm" id="downloadLeadsBtn">↓ Exportar CSV</button>
         </header>
 
         <div class="stats-toolbar">
-          <span class="stats-toolbar-label">Fuente:</span>
-          <div class="pill-group" id="sourcePills">
-            <button class="pill active" data-source="">Todas</button>
-            <button class="pill" data-source="Referido">Referido</button>
-            <button class="pill" data-source="Externo">Externo</button>
-            <button class="pill" data-source="Marketing">Marketing</button>
-            <button class="pill" data-source="Recurrente Marketing">Rec. Marketing</button>
+          <div class="stats-filter-group">
+            <span class="stats-toolbar-label">Fuente:</span>
+            <div class="pill-group" id="sourcePills">
+              <button class="pill active" data-source="">Todas</button>
+              <button class="pill" data-source="Referido">Referido</button>
+              <button class="pill" data-source="Externo">Externo</button>
+              <button class="pill" data-source="Marketing">Marketing</button>
+              <button class="pill" data-source="Recurrente Marketing">Rec. Marketing</button>
+            </div>
+          </div>
+          <div class="stats-filter-group">
+            <span class="stats-toolbar-label">Periodo:</span>
+            <input type="date" id="statsDateFrom" class="date-input" title="Fecha de inicio" />
+            <span class="date-sep">—</span>
+            <input type="date" id="statsDateTo" class="date-input" title="Fecha de fin" />
+            <button class="btn-icon" id="clearDatesBtn" title="Limpiar rango de fechas">✕</button>
           </div>
         </div>
 
@@ -264,6 +259,21 @@
             </select>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fieldQuality">Calidad</label>
+            <select id="fieldQuality">
+              <option value="">— Sin calificar —</option>
+              <option value="baja">Baja</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="fieldAmount">Importe del servicio</label>
+            <input type="number" id="fieldAmount" placeholder="0.00" min="0" step="0.01" />
+          </div>
+        </div>
         <div class="form-group">
           <label for="fieldMessage">Mensaje</label>
           <textarea id="fieldMessage" rows="3" placeholder="Mensaje inicial del lead o contexto…"></textarea>
@@ -311,6 +321,8 @@
       </div>
     </div>
   </div>
+
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>

@@ -28,6 +28,8 @@ model Lead {
   phone      String     @default("")
   source     String     @default("")
   status     String     @default("nuevo")
+  quality    String     @default("")
+  amount     Float?
   message    String     @default("")
   createdAt  DateTime   @default(now()) @map("created_at")
   tenantId   Int        @map("tenant_id")

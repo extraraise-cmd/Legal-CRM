@@ -11,8 +11,11 @@ const webhookRouter  = require('./routes/webhooks');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Clerk middleware solo en producción (en test no existe CLERK_PUBLISHABLE_KEY)
-if (process.env.NODE_ENV !== 'test') {
+// Clerk middleware solo cuando las claves están configuradas
+const clerkConfigured = process.env.CLERK_PUBLISHABLE_KEY &&
+                        !process.env.CLERK_PUBLISHABLE_KEY.startsWith('pk_test_XXX');
+
+if (clerkConfigured) {
   const { clerkMiddleware } = require('@clerk/express');
   app.use(clerkMiddleware());
 }
@@ -28,8 +31,9 @@ app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const VALID_STATUSES = ['nuevo', 'contactado', 'calificado', 'perdido', 'convertido'];
-const VALID_SOURCES  = ['', 'Referido', 'Externo', 'Marketing', 'Recurrente Marketing', 'external-client'];
+const VALID_STATUSES   = ['nuevo', 'contactado', 'calificado', 'perdido', 'convertido'];
+const VALID_SOURCES    = ['', 'Referido', 'Externo', 'Marketing', 'Recurrente Marketing', 'external-client'];
+const VALID_QUALITIES  = ['', 'baja', 'media', 'alta'];
 
 const LEAD_INCLUDE = {
   activities: { orderBy: { createdAt: 'desc' } },
@@ -43,6 +47,8 @@ function formatLead(lead) {
     phone:      lead.phone,
     source:     lead.source,
     status:     lead.status,
+    quality:    lead.quality,
+    amount:     lead.amount,
     message:    lead.message,
     createdAt:  lead.createdAt,
     activities: (lead.activities ?? []).map(a => ({
@@ -97,7 +103,7 @@ app.get('/api/leads/:id', async (req, res) => {
 
 // POST /api/leads
 app.post('/api/leads', async (req, res) => {
-  const { name, email, phone = '', source = '', status = 'nuevo', message = '' } = req.body;
+  const { name, email, phone = '', source = '', status = 'nuevo', quality = '', amount, message = '' } = req.body;
 
   if (!name  || !name.trim())  return res.status(400).json({ error: 'El nombre es obligatorio.' });
   if (!email || !email.trim()) return res.status(400).json({ error: 'El email es obligatorio.' });
@@ -107,6 +113,8 @@ app.post('/api/leads', async (req, res) => {
     return res.status(400).json({ error: 'Estado inválido.' });
   if (!VALID_SOURCES.includes(source))
     return res.status(400).json({ error: 'Fuente inválida.' });
+  if (!VALID_QUALITIES.includes(quality))
+    return res.status(400).json({ error: 'Calidad inválida.' });
 
   const lead = await prisma.lead.create({
     data: {
@@ -115,6 +123,8 @@ app.post('/api/leads', async (req, res) => {
       phone:    phone.trim(),
       source,
       status,
+      quality,
+      amount:   amount != null && amount !== '' ? parseFloat(amount) : null,
       message:  message.trim(),
       tenantId: req.tenantId,
     },
@@ -130,7 +140,7 @@ app.patch('/api/leads/:id', async (req, res) => {
   const existing = await prisma.lead.findFirst({ where: { id, tenantId: req.tenantId } });
   if (!existing) return res.status(404).json({ error: 'Lead no encontrado.' });
 
-  const { name, email, phone, source, status, message } = req.body;
+  const { name, email, phone, source, status, quality, amount, message } = req.body;
 
   if (name !== undefined && !name.trim())
     return res.status(400).json({ error: 'El nombre no puede estar vacío.' });
@@ -139,10 +149,12 @@ app.patch('/api/leads/:id', async (req, res) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
       return res.status(400).json({ error: 'El email no es válido.' });
   }
-  if (source !== undefined && !VALID_SOURCES.includes(source))
+  if (source  !== undefined && !VALID_SOURCES.includes(source))
     return res.status(400).json({ error: 'Fuente inválida.' });
-  if (status !== undefined && !VALID_STATUSES.includes(status))
+  if (status  !== undefined && !VALID_STATUSES.includes(status))
     return res.status(400).json({ error: 'Estado inválido.' });
+  if (quality !== undefined && !VALID_QUALITIES.includes(quality))
+    return res.status(400).json({ error: 'Calidad inválida.' });
 
   const data = {};
   if (name    !== undefined) data.name    = name.trim();
@@ -150,6 +162,8 @@ app.patch('/api/leads/:id', async (req, res) => {
   if (phone   !== undefined) data.phone   = phone.trim();
   if (source  !== undefined) data.source  = source;
   if (status  !== undefined) data.status  = status;
+  if (quality !== undefined) data.quality = quality;
+  if (amount  !== undefined) data.amount  = amount === null || amount === '' ? null : parseFloat(amount);
   if (message !== undefined) data.message = message.trim();
 
   const lead = await prisma.lead.update({ where: { id }, data, include: LEAD_INCLUDE });

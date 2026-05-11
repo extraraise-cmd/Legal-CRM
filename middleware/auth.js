@@ -1,4 +1,3 @@
-const { getAuth } = require('@clerk/express');
 const prisma = require('../db/prisma');
 
 function checkApproved(tenant, res) {
@@ -9,7 +8,7 @@ function checkApproved(tenant, res) {
   return true;
 }
 
-// En tests usamos API key simple para no depender de Clerk
+// Tests: API key simple
 async function testAuth(req, res, next) {
   if (req.headers['x-api-key'] !== process.env.API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -23,14 +22,35 @@ async function testAuth(req, res, next) {
   next();
 }
 
-// En producción verificamos el JWT de Clerk y resolvemos (o creamos) el tenant
+// Dev: sin Clerk configurado → API key + tenant por defecto (se crea si no existe)
+async function devAuth(req, res, next) {
+  if (req.headers['x-api-key'] !== process.env.API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  let tenant = await prisma.tenant.findFirst({ where: { role: 'admin' } });
+  if (!tenant) {
+    tenant = await prisma.tenant.create({
+      data: {
+        clerkUserId: 'dev-admin',
+        name:        'Admin',
+        email:       process.env.EMAIL_ADMIN || 'admin@minicrm.local',
+        role:        'admin',
+        approved:    true,
+      },
+    });
+  }
+  req.tenantId = tenant.id;
+  req.tenant   = tenant;
+  next();
+}
+
+// Producción: JWT de Clerk
 async function clerkAuth(req, res, next) {
+  const { getAuth } = require('@clerk/express');
   const { userId } = getAuth(req);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   let tenant = await prisma.tenant.findUnique({ where: { clerkUserId: userId } });
-
-  // Si el webhook aún no llegó, creamos el tenant como pendiente
   if (!tenant) {
     const claims = req.auth?.sessionClaims ?? {};
     const email  = claims.email ?? `${userId}@unknown.com`;
@@ -46,4 +66,8 @@ async function clerkAuth(req, res, next) {
   next();
 }
 
-module.exports = process.env.NODE_ENV === 'test' ? testAuth : clerkAuth;
+const isTest = process.env.NODE_ENV === 'test';
+const isDev  = !process.env.CLERK_PUBLISHABLE_KEY ||
+               process.env.CLERK_PUBLISHABLE_KEY.startsWith('pk_test_XXX');
+
+module.exports = isTest ? testAuth : isDev ? devAuth : clerkAuth;

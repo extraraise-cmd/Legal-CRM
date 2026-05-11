@@ -13,10 +13,13 @@ async function apiFetch(url, options = {}) {
 
 // ── State ──
 let currentFilter  = 'todos';
+let allLeads       = [];
 let editingId      = null;
 let activeDrawerId = null;
 let activeTab      = 'leads';
 let statsSource    = '';
+let statsDateFrom  = '';
+let statsDateTo    = '';
 let chartDonut     = null;
 let chartBar       = null;
 
@@ -35,6 +38,8 @@ const STATUS_BG = {
   perdido: '#fef2f2', convertido: '#faf5ff',
 };
 const SOURCES_LIST = ['Referido', 'Externo', 'Marketing', 'Recurrente Marketing'];
+const QUALITY_LABELS = { baja: 'Baja', media: 'Media', alta: 'Alta' };
+const QUALITY_CLASS  = { baja: 'q-baja', media: 'q-media', alta: 'q-alta' };
 
 // ── DOM refs ──
 const modalOverlay  = document.getElementById('modalOverlay');
@@ -58,6 +63,9 @@ const drawerMessageSection  = document.getElementById('drawerMessageSection');
 const drawerMessageText     = document.getElementById('drawerMessageText');
 const activityLog   = document.getElementById('activityLog');
 const activityInput = document.getElementById('activityInput');
+const searchInput   = document.getElementById('searchInput');
+const fieldQuality  = document.getElementById('fieldQuality');
+const fieldAmount   = document.getElementById('fieldAmount');
 
 // ════════════════════════════════════════
 //  TAB SWITCHING
@@ -88,13 +96,15 @@ function openModal(lead = null) {
   modalTitle.textContent = lead ? 'Editar lead' : 'Nuevo lead';
   submitBtn.textContent  = lead ? 'Actualizar'  : 'Guardar';
 
-  fieldName.value    = lead ? lead.name    : '';
-  fieldEmail.value   = lead ? lead.email   : '';
-  fieldPhone.value   = lead ? lead.phone   : '';
-  fieldSource.value  = lead ? lead.source  : '';
-  fieldStatus.value  = lead ? lead.status  : 'nuevo';
-  fieldMessage.value = lead ? lead.message : '';
-  leadIdInput.value  = lead ? lead.id      : '';
+  fieldName.value    = lead ? lead.name           : '';
+  fieldEmail.value   = lead ? lead.email          : '';
+  fieldPhone.value   = lead ? lead.phone          : '';
+  fieldSource.value  = lead ? lead.source         : '';
+  fieldStatus.value  = lead ? lead.status         : 'nuevo';
+  fieldQuality.value = lead ? (lead.quality || '') : '';
+  fieldAmount.value  = lead && lead.amount != null ? lead.amount : '';
+  fieldMessage.value = lead ? lead.message        : '';
+  leadIdInput.value  = lead ? lead.id             : '';
 
   clearErrors();
   modalOverlay.classList.remove('hidden');
@@ -126,12 +136,15 @@ leadForm.addEventListener('submit', async e => {
   e.preventDefault();
   clearErrors();
 
+  const amountRaw = fieldAmount.value.trim();
   const payload = {
     name:    fieldName.value.trim(),
     email:   fieldEmail.value.trim(),
     phone:   fieldPhone.value.trim(),
     source:  fieldSource.value,
     status:  fieldStatus.value,
+    quality: fieldQuality.value,
+    amount:  amountRaw !== '' ? parseFloat(amountRaw) : null,
     message: fieldMessage.value.trim(),
   };
 
@@ -151,7 +164,9 @@ leadForm.addEventListener('submit', async e => {
 
     if (!res.ok) { formError.textContent = data.error || 'Error desconocido.'; formError.classList.remove('hidden'); return; }
 
+    const wasEditing = !!editingId;
     closeModal();
+    showToast(wasEditing ? 'Lead actualizado correctamente.' : 'Lead creado correctamente.');
     await fetchLeads();
     if (activeDrawerId === data.id) renderDrawer(data);
   } catch {
@@ -182,9 +197,11 @@ function renderDrawer(lead) {
   drawerBadge.textContent = lead.status;
 
   drawerInfoGrid.innerHTML =
-    infoItem('Email',   lead.email  || null) +
-    infoItem('Teléfono',lead.phone  || null) +
-    infoItem('Fuente',  lead.source || null) +
+    infoItem('Email',   lead.email   || null) +
+    infoItem('Teléfono',lead.phone   || null) +
+    infoItem('Fuente',  lead.source  || null) +
+    infoItem('Calidad', lead.quality ? QUALITY_LABELS[lead.quality] : null) +
+    infoItem('Importe', lead.amount  != null ? formatAmount(lead.amount) : null) +
     infoItem('Creado',  formatDate(lead.createdAt));
 
   if (lead.message) {
@@ -261,23 +278,33 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentFilter = btn.dataset.status;
-    fetchLeads();
+    applyFilters();
   });
 });
 
+if (searchInput) {
+  searchInput.addEventListener('input', applyFilters);
+}
+
 async function fetchLeads() {
+  showSkeleton();
   try {
-    const url  = currentFilter !== 'todos' ? `${API}?status=${currentFilter}` : API;
-    const list = await (await apiFetch(url)).json();
-    renderLeads(list);
+    const list = await (await apiFetch(API)).json();
+    allLeads = list;
+    updateFilterCounts(list);
+    applyFilters();
   } catch { console.error('Error al cargar leads'); }
 }
 
 function renderLeads(leads) {
   if (!leads.length) {
-    leadsBody.innerHTML = `<tr><td colspan="6" class="empty-state">${
-      currentFilter === 'todos' ? 'No hay leads aún. ¡Crea el primero!'
-        : `No hay leads con estado "<strong>${currentFilter}</strong>".`}</td></tr>`;
+    const searching = searchInput && searchInput.value.trim();
+    const msg = searching
+      ? `Sin resultados para "<strong>${escHtml(searchInput.value.trim())}</strong>".`
+      : currentFilter === 'todos' ? 'No hay leads aún. ¡Crea el primero!'
+        : `No hay leads con estado "<strong>${STATUS_LABELS[currentFilter] || currentFilter}</strong>".`;
+    leadsBody.innerHTML = `<tr><td colspan="7" class="empty-state">
+      <span class="empty-state-icon">◎</span>${msg}</td></tr>`;
     return;
   }
   leadsBody.innerHTML = leads.map(l => `
@@ -288,7 +315,19 @@ function renderLeads(leads) {
       </td>
       <td><div style="font-size:13px;color:var(--text-muted)">${escHtml(l.email)}</div></td>
       <td>${l.source ? `<span style="font-size:13px;color:var(--text-muted)">${escHtml(l.source)}</span>` : '<span style="color:#cbd5e1">—</span>'}</td>
-      <td><span class="badge badge-${l.status}">${l.status}</span></td>
+      <td>
+        <select class="quality-select ${l.quality ? QUALITY_CLASS[l.quality] : ''}"
+                onchange="changeQuality(${l.id}, this)">
+          <option value=""    ${!l.quality          ? 'selected' : ''}>—</option>
+          <option value="baja"  ${l.quality==='baja'  ? 'selected' : ''}>Baja</option>
+          <option value="media" ${l.quality==='media' ? 'selected' : ''}>Media</option>
+          <option value="alta"  ${l.quality==='alta'  ? 'selected' : ''}>Alta</option>
+        </select>
+      </td>
+      <td>
+        <span class="badge badge-${l.status}">${STATUS_LABELS[l.status] || l.status}</span>
+        ${l.amount != null ? `<div class="lead-amount">${formatAmount(l.amount)}</div>` : ''}
+      </td>
       <td class="lead-date">${formatDate(l.createdAt)}</td>
       <td>
         <div class="table-actions">
@@ -309,6 +348,7 @@ async function deleteLead(id) {
   if (!confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) return;
   await apiFetch(`${API}/${id}`, { method: 'DELETE' });
   if (activeDrawerId === id) closeDrawer();
+  showToast('Lead eliminado.', 'info');
   fetchLeads();
 }
 
@@ -316,6 +356,7 @@ async function deleteLeadFromDrawer(id) {
   if (!confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) return;
   await apiFetch(`${API}/${id}`, { method: 'DELETE' });
   closeDrawer();
+  showToast('Lead eliminado.', 'info');
   fetchLeads();
 }
 
@@ -331,23 +372,107 @@ document.querySelectorAll('#sourcePills .pill').forEach(btn => {
   });
 });
 
+const statsDateFromEl = document.getElementById('statsDateFrom');
+const statsDateToEl   = document.getElementById('statsDateTo');
+
+statsDateFromEl.addEventListener('change', () => {
+  statsDateFrom = statsDateFromEl.value;
+  statsDateFromEl.classList.toggle('active', !!statsDateFrom);
+  renderStats();
+});
+statsDateToEl.addEventListener('change', () => {
+  statsDateTo = statsDateToEl.value;
+  statsDateToEl.classList.toggle('active', !!statsDateTo);
+  renderStats();
+});
+document.getElementById('clearDatesBtn').addEventListener('click', () => {
+  statsDateFrom = statsDateTo = '';
+  statsDateFromEl.value = statsDateToEl.value = '';
+  statsDateFromEl.classList.remove('active');
+  statsDateToEl.classList.remove('active');
+  renderStats();
+});
+
+document.getElementById('downloadLeadsBtn').addEventListener('click', async () => {
+  const all   = await (await apiFetch(API)).json();
+  const leads = filterByDate(all);
+  if (!leads.length) { showToast('No hay leads en ese rango de fechas.', 'info'); return; }
+  downloadCSV(leads);
+  showToast(`${leads.length} leads exportados.`);
+});
+
+function filterByDate(leads) {
+  let list = leads;
+  if (statsDateFrom) {
+    const from = new Date(statsDateFrom);
+    list = list.filter(l => new Date(l.createdAt) >= from);
+  }
+  if (statsDateTo) {
+    const to = new Date(statsDateTo + 'T23:59:59');
+    list = list.filter(l => new Date(l.createdAt) <= to);
+  }
+  return list;
+}
+
+function downloadCSV(leads) {
+  const cols = [
+    ['ID',         l => l.id],
+    ['Nombre',     l => l.name],
+    ['Email',      l => l.email],
+    ['Teléfono',   l => l.phone   || ''],
+    ['Fuente',     l => l.source  || ''],
+    ['Calidad',    l => QUALITY_LABELS[l.quality] || ''],
+    ['Estado',     l => STATUS_LABELS[l.status]   || l.status],
+    ['Importe',    l => l.amount != null ? l.amount : ''],
+    ['Mensaje',    l => l.message || ''],
+    ['Creado',     l => new Date(l.createdAt).toLocaleDateString('es-ES')],
+    ['Actividades',l => (l.activities || []).length],
+  ];
+
+  const esc  = v => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [
+    cols.map(([h]) => esc(h)).join(','),
+    ...leads.map(l => cols.map(([, fn]) => esc(fn(l))).join(',')),
+  ].join('\r\n');
+
+  const blob = new Blob(['﻿' + rows], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url });
+  const from = statsDateFrom || 'inicio';
+  const to   = statsDateTo   || new Date().toISOString().slice(0, 10);
+  a.download = `leads_${from}_${to}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function renderStats() {
   const all   = await (await apiFetch(API)).json();
-  const leads = statsSource !== '' ? all.filter(l => l.source === statsSource) : all;
+  const dated = filterByDate(all);
+  const leads = statsSource !== '' ? dated.filter(l => l.source === statsSource) : dated;
 
-  if (!all.length) {
-    document.getElementById('kpiGrid').innerHTML = '<div class="empty-stats">Aún no hay leads para analizar.</div>';
+  // update subtitle with active period
+  const subtitle = document.getElementById('statsSubtitle');
+  if (statsDateFrom || statsDateTo) {
+    const f = statsDateFrom ? new Date(statsDateFrom).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }) : '…';
+    const t = statsDateTo   ? new Date(statsDateTo  ).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric' }) : 'hoy';
+    subtitle.textContent = `Periodo: ${f} – ${t}`;
+  } else {
+    subtitle.textContent = 'Análisis del pipeline de ventas';
+  }
+
+  if (!dated.length) {
+    document.getElementById('kpiGrid').innerHTML = '<div class="empty-stats">No hay leads en ese rango de fechas.</div>';
     document.querySelector('.charts-row').style.display = 'none';
     document.querySelector('.breakdown-card').style.display = 'none';
     return;
   }
-  document.querySelector('.charts-row').style.display   = '';
+  document.querySelector('.charts-row').style.display    = '';
   document.querySelector('.breakdown-card').style.display = '';
 
-  renderKPIs(leads, all.length);
+  renderKPIs(leads, dated.length);
   renderDonut(leads);
-  renderBarChart(all);
-  renderBreakdown(all);
+  renderBarChart(dated);
+  renderBreakdown(dated);
 }
 
 function countByStatus(leads) {
@@ -545,9 +670,29 @@ function convBar(pct) {
   </div>`;
 }
 
+async function changeQuality(id, selectEl) {
+  const quality = selectEl.value;
+  selectEl.className = `quality-select ${quality ? QUALITY_CLASS[quality] : ''}`;
+  try {
+    await apiFetch(`${API}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quality }),
+    });
+    const lead = allLeads.find(l => l.id === id);
+    if (lead) lead.quality = quality;
+  } catch {
+    showToast('Error al cambiar la calidad.', 'error');
+  }
+}
+
 // ════════════════════════════════════════
 //  HELPERS
 // ════════════════════════════════════════
+function formatAmount(amount) {
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
+}
+
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -556,6 +701,56 @@ function formatDate(iso) {
 }
 function formatDatetime(iso) {
   return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// ════════════════════════════════════════
+//  SKELETON / TOAST / FILTER UTILS
+// ════════════════════════════════════════
+function showSkeleton() {
+  leadsBody.innerHTML = Array(6).fill(`
+    <tr>
+      <td><div class="skel skel-name"></div><div class="skel skel-sub"></div></td>
+      <td><div class="skel skel-email"></div></td>
+      <td><div class="skel skel-source"></div></td>
+      <td><div class="skel skel-badge"></div></td>
+      <td><div class="skel skel-date"></div></td>
+      <td></td>
+    </tr>`).join('');
+}
+
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 280);
+  }, 3000);
+}
+
+function updateFilterCounts(leads) {
+  document.querySelectorAll('.filter-btn[data-status]').forEach(btn => {
+    const s = btn.dataset.status;
+    const count = s === 'todos' ? leads.length : leads.filter(l => l.status === s).length;
+    btn.textContent = s === 'todos' ? `Todos (${count})` : `${STATUS_LABELS[s]} (${count})`;
+  });
+}
+
+function applyFilters() {
+  const query = (searchInput?.value ?? '').trim().toLowerCase();
+  let list = currentFilter !== 'todos'
+    ? allLeads.filter(l => l.status === currentFilter)
+    : allLeads;
+  if (query) {
+    list = list.filter(l =>
+      l.name.toLowerCase().includes(query) ||
+      l.email.toLowerCase().includes(query)
+    );
+  }
+  renderLeads(list);
 }
 
 // ════════════════════════════════════════
@@ -570,23 +765,39 @@ function showScreen(name) {
 async function bootstrap() {
   const { clerkPublishableKey } = await fetch('/config').then(r => r.json());
 
+  // ── Modo dev: sin Clerk configurado ──────────────────────────────────────
+  if (!clerkPublishableKey || clerkPublishableKey.startsWith('pk_test_XXX')) {
+    // apiFetch usará x-api-key en lugar de Bearer token
+    apiFetch = (url, options = {}) => fetch(url, {
+      ...options,
+      headers: { ...options.headers, 'x-api-key': 'minicrm-secret-2026' },
+    });
+    showScreen('app');
+    document.getElementById('user-name').textContent  = 'Admin (dev)';
+    document.getElementById('user-email').textContent = 'sin Clerk configurado';
+    document.getElementById('signout-btn').style.display = 'none';
+    document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
+    fetchLeads();
+    return;
+  }
+
+  // ── Modo producción: Clerk ────────────────────────────────────────────────
   _clerk = new window.Clerk(clerkPublishableKey);
   await _clerk.load();
 
   _clerk.addListener(({ user }) => {
-    if (!user) { showScreen('auth'); }
+    if (!user) showScreen('auth');
   });
 
   if (!_clerk.user) {
     showScreen('auth');
     _clerk.mountSignIn(document.getElementById('sign-in-container'), {
-      afterSignInUrl:  '/',
-      afterSignUpUrl:  '/',
+      afterSignInUrl: '/',
+      afterSignUpUrl: '/',
     });
     return;
   }
 
-  // Comprobar si el tenant está aprobado
   const token = await _clerk.session.getToken();
   const check = await fetch('/api/leads', {
     headers: { 'Authorization': `Bearer ${token}` },
@@ -602,7 +813,6 @@ async function bootstrap() {
     }
   }
 
-  // Usuario aprobado: mostrar app
   const u = _clerk.user;
   document.getElementById('user-name').textContent  = u.fullName || u.primaryEmailAddress?.emailAddress || '';
   document.getElementById('user-email').textContent = u.primaryEmailAddress?.emailAddress || '';
