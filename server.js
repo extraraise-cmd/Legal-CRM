@@ -3,22 +3,13 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const prisma = require('./db/prisma');
-const requireAuth    = require('./middleware/auth');
-const adminRouter    = require('./routes/admin');
-const adminPanelApi  = require('./routes/admin-panel-api');
-const webhookRouter  = require('./routes/webhooks');
+const requireAuth   = require('./middleware/auth');
+const adminRouter   = require('./routes/admin');
+const adminPanelApi = require('./routes/admin-panel-api');
+const authRouter    = require('./routes/auth');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
-
-// Clerk middleware solo cuando las claves están configuradas
-const clerkConfigured = process.env.CLERK_PUBLISHABLE_KEY &&
-                        !process.env.CLERK_PUBLISHABLE_KEY.startsWith('pk_test_XXX');
-
-if (clerkConfigured) {
-  const { clerkMiddleware } = require('@clerk/express');
-  app.use(clerkMiddleware());
-}
 
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -26,8 +17,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-tenant-id'],
 }));
 
-// El webhook de Clerk necesita el body raw (Buffer) para verificar la firma
-app.use('/webhooks/clerk', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -59,13 +48,8 @@ function formatLead(lead) {
   };
 }
 
-// ─── Config pública (publishable key para el frontend) ───────────────────────
-app.get('/config', (req, res) => {
-  res.json({ clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || '' });
-});
-
-// ─── Webhooks (sin auth, verificación propia con svix) ───────────────────────
-app.use('/webhooks', webhookRouter);
+// ─── Auth (register / login) ─────────────────────────────────────────────────
+app.use('/auth', authRouter);
 
 // ─── Admin panel API (solo API key, para public/admin.html) ──────────────────
 app.use('/admin-api', adminPanelApi);

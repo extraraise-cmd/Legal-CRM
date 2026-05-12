@@ -19,8 +19,10 @@
       padding: 40px 36px; width: 100%; max-width: 400px; text-align: center;
     }
     .auth-logo { font-size: 1.6rem; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
-    .auth-sub  { font-size: .9rem; color: #64748b; margin-bottom: 28px; }
-    #sign-in-container { display: flex; justify-content: center; }
+    .auth-sub  { font-size: .9rem; color: #64748b; margin-bottom: 22px; }
+    .auth-submit-btn { width: 100%; margin-top: 4px; justify-content: center; }
+    .auth-toggle { font-size: 13px; color: #64748b; margin-top: 18px; text-align: center; }
+    .btn-link { background: none; border: none; color: #6366f1; font-size: 13px; cursor: pointer; padding: 0; text-decoration: underline; }
     /* Pending screen */
     .pending-icon { font-size: 3rem; margin-bottom: 16px; }
     .pending-title { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
@@ -34,12 +36,49 @@
 </head>
 <body>
 
-  <!-- ═══ PANTALLA DE LOGIN ═══ -->
+  <!-- ═══ PANTALLA DE LOGIN / REGISTRO ═══ -->
   <div id="auth-screen" class="auth-screen">
     <div class="auth-card">
       <div class="auth-logo">MiniCRM Leads</div>
-      <p class="auth-sub">Inicia sesión para acceder a tu panel</p>
-      <div id="sign-in-container"></div>
+      <p class="auth-sub" id="authSub">Inicia sesión para acceder a tu panel</p>
+
+      <!-- Login -->
+      <div id="loginWrap">
+        <form id="loginForm" novalidate>
+          <div class="form-group">
+            <label for="authEmail">Email</label>
+            <input type="email" id="authEmail" placeholder="tu@email.com" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="authPassword">Contraseña</label>
+            <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <div id="loginError" class="form-error hidden"></div>
+          <button type="submit" class="btn btn-primary auth-submit-btn" id="loginBtn">Entrar</button>
+        </form>
+        <p class="auth-toggle">¿No tienes cuenta? <button class="btn-link" id="showRegister">Solicitar acceso</button></p>
+      </div>
+
+      <!-- Registro -->
+      <div id="registerWrap" class="hidden">
+        <form id="registerForm" novalidate>
+          <div class="form-group">
+            <label for="regName">Nombre</label>
+            <input type="text" id="regName" placeholder="Tu nombre" autocomplete="name" />
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Email</label>
+            <input type="email" id="regEmail" placeholder="tu@email.com" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Contraseña <span style="font-size:11px;color:#94a3b8">(mín. 8 caracteres)</span></label>
+            <input type="password" id="regPassword" placeholder="••••••••" autocomplete="new-password" />
+          </div>
+          <div id="regError" class="form-error hidden"></div>
+          <button type="submit" class="btn btn-primary auth-submit-btn" id="regBtn">Solicitar acceso</button>
+        </form>
+        <p class="auth-toggle">¿Ya tienes cuenta? <button class="btn-link" id="showLogin">Iniciar sesión</button></p>
+      </div>
     </div>
   </div>
 
@@ -325,7 +364,6 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

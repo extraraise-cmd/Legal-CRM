@@ -9,10 +9,11 @@ datasource db {
 }
 
 model Tenant {
-  id          Int      @id @default(autoincrement())
-  clerkUserId String   @unique @map("clerk_user_id")
-  name        String
-  email       String   @unique
+  id           Int      @id @default(autoincrement())
+  clerkUserId  String?  @unique @map("clerk_user_id")
+  name         String
+  email        String   @unique
+  passwordHash String   @default("") @map("password_hash")
   role        String   @default("user")
   plan        String   @default("free")
   approved    Boolean  @default(false)

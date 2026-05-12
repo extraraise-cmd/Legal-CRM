@@ -1,13 +1,14 @@
 const APP_VERSION = '1.1';
 const API = '/api/leads';
 
-let _clerk;
-
-async function apiFetch(url, options = {}) {
-  const token = await _clerk.session.getToken();
+function apiFetch(url, options = {}) {
+  const token = localStorage.getItem('crm_token');
   return fetch(url, {
     ...options,
-    headers: { ...options.headers, 'Authorization': `Bearer ${token}` },
+    headers: {
+      ...options.headers,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
   });
 }
 
@@ -762,66 +763,130 @@ function showScreen(name) {
   document.getElementById('app-layout').classList.toggle('hidden', name !== 'app');
 }
 
-async function bootstrap() {
-  const { clerkPublishableKey } = await fetch('/config').then(r => r.json());
+function setUserInfo(token) {
+  try {
+    const p = JSON.parse(atob(token.split('.')[1]));
+    document.getElementById('user-name').textContent  = p.name  || 'Usuario';
+    document.getElementById('user-email').textContent = p.email || '';
+  } catch {}
+  document.getElementById('signout-btn').onclick = () => {
+    localStorage.removeItem('crm_token');
+    location.reload();
+  };
+  document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
+}
 
-  // ── Modo dev: sin Clerk configurado ──────────────────────────────────────
-  if (!clerkPublishableKey || clerkPublishableKey.startsWith('pk_test_XXX')) {
-    // apiFetch usará x-api-key en lugar de Bearer token
-    apiFetch = (url, options = {}) => fetch(url, {
-      ...options,
-      headers: { ...options.headers, 'x-api-key': 'minicrm-secret-2026' },
+function enterApp(token) {
+  setUserInfo(token);
+  showScreen('app');
+  fetchLeads();
+}
+
+// ── Formularios de auth ───────────────────────────────────────────────────────
+document.getElementById('showRegister').addEventListener('click', () => {
+  document.getElementById('loginWrap').classList.add('hidden');
+  document.getElementById('registerWrap').classList.remove('hidden');
+  document.getElementById('authSub').textContent = 'Solicita acceso al panel';
+});
+document.getElementById('showLogin').addEventListener('click', () => {
+  document.getElementById('registerWrap').classList.add('hidden');
+  document.getElementById('loginWrap').classList.remove('hidden');
+  document.getElementById('authSub').textContent = 'Inicia sesión para acceder a tu panel';
+});
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  const btn   = document.getElementById('loginBtn');
+  errEl.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Entrando…';
+
+  try {
+    const res  = await fetch('/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:    document.getElementById('authEmail').value.trim(),
+        password: document.getElementById('authPassword').value,
+      }),
     });
-    showScreen('app');
-    document.getElementById('user-name').textContent  = 'Admin (dev)';
-    document.getElementById('user-email').textContent = 'sin Clerk configurado';
-    document.getElementById('signout-btn').style.display = 'none';
-    document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
-    fetchLeads();
-    return;
-  }
+    const data = await res.json();
 
-  // ── Modo producción: Clerk ────────────────────────────────────────────────
-  _clerk = new window.Clerk(clerkPublishableKey);
-  await _clerk.load();
-
-  _clerk.addListener(({ user }) => {
-    if (!user) showScreen('auth');
-  });
-
-  if (!_clerk.user) {
-    showScreen('auth');
-    _clerk.mountSignIn(document.getElementById('sign-in-container'), {
-      afterSignInUrl: '/',
-      afterSignUpUrl: '/',
-    });
-    return;
-  }
-
-  const token = await _clerk.session.getToken();
-  const check = await fetch('/api/leads', {
-    headers: { 'Authorization': `Bearer ${token}` },
-  });
-
-  if (check.status === 403) {
-    const body = await check.json().catch(() => ({}));
-    if (body.code === 'PENDING_APPROVAL') {
+    if (res.status === 403 && data.code === 'PENDING_APPROVAL') {
+      document.getElementById('pending-signout').onclick = () => { localStorage.removeItem('crm_token'); location.reload(); };
       showScreen('pending');
-      document.getElementById('pending-signout').onclick = () =>
-        _clerk.signOut().then(() => location.reload());
+      return;
+    }
+    if (!res.ok) { errEl.textContent = data.error || 'Error al iniciar sesión.'; errEl.classList.remove('hidden'); return; }
+
+    localStorage.setItem('crm_token', data.token);
+    enterApp(data.token);
+  } catch {
+    errEl.textContent = 'No se pudo conectar con el servidor.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+});
+
+document.getElementById('registerForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errEl = document.getElementById('regError');
+  const btn   = document.getElementById('regBtn');
+  errEl.classList.add('hidden');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  try {
+    const res  = await fetch('/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:     document.getElementById('regName').value.trim(),
+        email:    document.getElementById('regEmail').value.trim(),
+        password: document.getElementById('regPassword').value,
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) { errEl.textContent = data.error || 'Error al registrarse.'; errEl.classList.remove('hidden'); return; }
+
+    if (data.token) {
+      localStorage.setItem('crm_token', data.token);
+      enterApp(data.token);
+    } else {
+      document.getElementById('pending-signout').onclick = () => { localStorage.removeItem('crm_token'); location.reload(); };
+      showScreen('pending');
+    }
+  } catch {
+    errEl.textContent = 'No se pudo conectar con el servidor.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Solicitar acceso';
+  }
+});
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+async function bootstrap() {
+  const token = localStorage.getItem('crm_token');
+  if (!token) { showScreen('auth'); return; }
+
+  let res;
+  try { res = await fetch('/api/leads', { headers: { 'Authorization': `Bearer ${token}` } }); }
+  catch { showScreen('auth'); return; }
+
+  if (res.status === 401) {
+    localStorage.removeItem('crm_token');
+    showScreen('auth');
+    return;
+  }
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    if (body.code === 'PENDING_APPROVAL') {
+      document.getElementById('pending-signout').onclick = () => { localStorage.removeItem('crm_token'); location.reload(); };
+      showScreen('pending');
       return;
     }
   }
 
-  const u = _clerk.user;
-  document.getElementById('user-name').textContent  = u.fullName || u.primaryEmailAddress?.emailAddress || '';
-  document.getElementById('user-email').textContent = u.primaryEmailAddress?.emailAddress || '';
-  document.getElementById('signout-btn').onclick    = () =>
-    _clerk.signOut().then(() => location.reload());
-
-  showScreen('app');
-  document.getElementById('appVersion').textContent = `v${APP_VERSION}`;
-  fetchLeads();
+  enterApp(token);
 }
 
 bootstrap();
